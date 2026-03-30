@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual env / env files
+venv/
+.env
+.python-version
+
+# Streamlit
+.streamlit/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Generated artifacts
+embeddings/
+indexes/
+data/*.csv
+!data/README.md
+
+# Raw datasets if copied into repo
+data/raw/
+data/images/
+
+# Logs / temp
+*.log
+*.tmp
+*.temp

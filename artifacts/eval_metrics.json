@@ -1,0 +1,10 @@
+{
+  "dataset_size": 289222,
+  "queries_evaluated": 200,
+  "precision_at_5": 0.624,
+  "precision_at_10": 0.5985,
+  "avg_latency_ms": 37.276,
+  "p95_latency_ms": 42.16,
+  "min_latency_ms": 33.994,
+  "max_latency_ms": 54.296
+}

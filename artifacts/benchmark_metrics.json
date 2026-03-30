@@ -1,0 +1,11 @@
+{
+  "queries_benchmarked": 100,
+  "avg_embed_latency_ms": 76.454,
+  "p95_embed_latency_ms": 95.523,
+  "avg_search_latency_ms": 34.376,
+  "p95_search_latency_ms": 43.462,
+  "avg_total_latency_ms": 110.83,
+  "p95_total_latency_ms": 139.969,
+  "min_total_latency_ms": 94.831,
+  "max_total_latency_ms": 169.149
+}

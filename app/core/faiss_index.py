@@ -31,13 +31,13 @@ class FAISSService:
         Use embedding_map_full.csv (not metadata.csv) because this file is guaranteed
         to align exactly with the final embedding row order and FAISS index row order.
         """
-        metadata_path = settings.resolve_path(FULL_EMBEDDING_MAP_PATH)
+        metadata_path = settings.resolve_path(settings.METADATA_PATH)
         if not metadata_path.exists():
             raise FileNotFoundError(f"Embedding map file not found: {metadata_path}")
 
         self.metadata_df = pd.read_csv(metadata_path)
 
-        required_cols = {"image_id", "image_path", "category", "coarse_label"}
+        required_cols = {"image_id", "image_path", "category"}
         missing = required_cols - set(self.metadata_df.columns)
         if missing:
             raise ValueError(f"embedding_map_full.csv missing required columns: {missing}")
@@ -96,32 +96,25 @@ class FAISSService:
     def get_available_coarse_labels(self) -> List[int]:
         return sorted(self.coarse_indexes.keys())
 
-    def _format_results(
-        self,
-        indices: np.ndarray,
-        scores: np.ndarray,
-        metadata_df: pd.DataFrame
-    ) -> List[dict]:
+    def _format_results(self, indices: np.ndarray, scores: np.ndarray, metadata_df: pd.DataFrame) -> List[dict]:
         results = []
-
         for idx, score in zip(indices[0], scores[0]):
             if idx < 0 or idx >= len(metadata_df):
                 continue
 
             row = metadata_df.iloc[int(idx)]
-
-            result = {
+            results.append({
                 "image_id": str(row["image_id"]),
                 "image_path": str(row["image_path"]),
                 "category": str(row["category"]),
+                "coarse_label": int(row["coarse_label"]) if "coarse_label" in metadata_df.columns and pd.notna(row["coarse_label"]) else None,
+                "coarse_name": str(row["coarse_name"]) if "coarse_name" in metadata_df.columns and pd.notna(row["coarse_name"]) else None,
                 "title": str(row["title"]) if "title" in metadata_df.columns and pd.notna(row["title"]) else None,
-                "coarse_label": int(row["coarse_label"]) if pd.notna(row["coarse_label"]) else None,
                 "score": float(score),
-            }
-            results.append(result)
-
+            })
         return results
 
+    
     def search(
         self,
         query_embedding: np.ndarray,
@@ -132,28 +125,22 @@ class FAISSService:
             raise RuntimeError("FAISS service is not initialized.")
 
         top_k = min(top_k, settings.MAX_SEARCH_K)
-        query_embedding = query_embedding.astype(np.float32)
 
-        # Category-restricted search using prebuilt coarse index
-        if coarse_label is not None and coarse_label in self.coarse_indexes:
-            coarse_index = self.coarse_indexes[coarse_label]
-            coarse_meta = self.coarse_metadata.get(coarse_label)
+    # Search a bigger pool first, then filter by coarse label
+        search_k = max(top_k * 20, 100)
 
-            if coarse_meta is None or coarse_meta.empty:
-                return []
+        scores, indices = self.index.search(
+            query_embedding.astype(np.float32),
+            min(search_k, len(self.metadata_df))
+        )
 
-            scores, indices = coarse_index.search(query_embedding, top_k)
-            return self._format_results(indices, scores, coarse_meta)
-
-        # Default: global search
-        scores, indices = self.index.search(query_embedding, max(top_k * 3, top_k))
         results = self._format_results(indices, scores, self.metadata_df)
 
-        # Optional fallback filter if caller passed a coarse label that wasn't preloaded
         if coarse_label is not None:
-            results = [r for r in results if r["coarse_label"] == coarse_label]
+            results = [r for r in results if r.get("coarse_label") == coarse_label]
 
         return results[:top_k]
+
 
     @staticmethod
     def build_index(embeddings: np.ndarray) -> faiss.Index:

@@ -69,19 +69,43 @@ async def health():
     dataset_size = faiss_service.get_dataset_size() if faiss_service else 0
     embedding_dim = clip_service.embedding_dim if clip_service else 0
     device = clip_service.device if clip_service else "unavailable"
-    available_coarse_labels = faiss_service.get_available_coarse_labels() if faiss_service else []
 
+    available_coarse_labels = []
+    available_coarse_names = []
+
+    if faiss_service is not None and faiss_service.metadata_df is not None:
+        df = faiss_service.metadata_df
+
+        if "coarse_label" in df.columns:
+            available_coarse_labels = sorted(
+                [int(x) for x in df["coarse_label"].dropna().unique().tolist()]
+            )
+
+        if "coarse_label" in df.columns and "coarse_name" in df.columns:
+            coarse_df = (
+                df[["coarse_label", "coarse_name"]]
+                .dropna(subset = ["coarse_label", "coarse_name"])
+                .drop_duplicates()
+                .sort_values("coarse_label")
+            )
+
+            available_coarse_names = [
+                f"{int(row.coarse_label)} - {str(row.coarse_name)}"
+                for row in coarse_df.itertuples(index=False)
+            ]
+    print("[DEBUG] health metadata columns:", faiss_service.metadata_df.columns.tolist() if faiss_service and faiss_service.metadata_df is not None else [])
+    print("[DEBUG] available_coarse_names count:", len(available_coarse_names))
     return HealthResponse(
         app_name=settings.APP_NAME,
-        status="ok" if clip_loaded and index_loaded else "degraded",
+        status="ok" if clip_loaded else "degraded",
         clip_loaded=clip_loaded,
         index_loaded=index_loaded,
         dataset_size=dataset_size,
         embedding_dim=embedding_dim,
         device=device,
         available_coarse_labels=available_coarse_labels,
+        available_coarse_names=available_coarse_names,
     )
-
 
 @app.post("/search/image", response_model=SearchResponse)
 async def search_image(

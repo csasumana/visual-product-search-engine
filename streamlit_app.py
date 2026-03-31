@@ -1,15 +1,14 @@
-import io
+import os
 from pathlib import Path
 from typing import Optional
 
 import requests
 import streamlit as st
-from PIL import Image
 
 from app.core.config import settings
 
 
-API_BASE_URL = "http://127.0.0.1:8002"
+API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8002").rstrip("/")
 
 
 st.set_page_config(
@@ -47,6 +46,7 @@ def search_by_image(uploaded_file, top_k: int, coarse_label: Optional[int]):
     if coarse_label is not None:
         data["coarse_label"] = str(coarse_label)
 
+    # Keep these routes because your backend currently uses them
     response = requests.post(f"{API_BASE_URL}/search/image", files=files, data=data, timeout=300)
     response.raise_for_status()
     return response.json()
@@ -60,12 +60,13 @@ def search_by_text(text: str, top_k: int, coarse_label: Optional[int]):
     if coarse_label is not None:
         data["coarse_label"] = str(coarse_label)
 
+    # Keep these routes because your backend currently uses them
     response = requests.post(f"{API_BASE_URL}/search/text", data=data, timeout=300)
     response.raise_for_status()
     return response.json()
 
 
-def render_results(results_payload):
+def render_results(results_payload, score_label = "Score"):
     results = results_payload.get("results", [])
     latency_ms = results_payload.get("latency_ms", None)
 
@@ -99,9 +100,10 @@ def render_results(results_payload):
                 else:
                     st.warning("Image not found")
 
-                st.markdown(f"**Score:** `{item.get('score', 0):.4f}`")
+                st.markdown(f"**{score_label}:** `{item.get('score', 0):.4f}`")
                 st.markdown(f"**Category:** `{item.get('category', 'N/A')}`")
                 st.markdown(f"**Coarse Label:** `{item.get('coarse_label', 'N/A')}`")
+                st.markdown(f"**Coarse Name:** `{item.get('coarse_name', 'N/A')}`")
 
                 title = item.get("title")
                 if title:
@@ -112,9 +114,9 @@ def main():
     st.title("🛍️ Visual Product Search Engine")
     st.caption("CLIP + FAISS + FastAPI + Streamlit | Full DeepFashion (289K+)")
 
-    # Sidebar: API health + controls
     with st.sidebar:
         st.header("API Status")
+        st.caption(f"API: {API_BASE_URL}")
 
         try:
             health = fetch_health()
@@ -122,7 +124,7 @@ def main():
             st.write(f"**Dataset Size:** {health['dataset_size']:,}")
             st.write(f"**Embedding Dim:** {health['embedding_dim']}")
             st.write(f"**Device:** {health['device']}")
-            available_labels = health.get("available_coarse_labels", [])
+            #available_coarse_labels = health.get("available_coarse_labels", [])
         except Exception as e:
             st.error(f"Backend unavailable: {e}")
             st.stop()
@@ -138,11 +140,22 @@ def main():
 
         top_k = st.slider("Top K Results", min_value=1, max_value=10, value=5)
 
-        coarse_options = ["All"] + [str(x) for x in available_labels]
-        selected_coarse = st.selectbox("Garment Class Filter (coarse_label)", coarse_options)
-        coarse_label = None if selected_coarse == "All" else int(selected_coarse)
+        available_coarse_names = health.get("available_coarse_names", [])
+        available_coarse_labels = health.get("available_coarse_labels", [])
 
-    # Main UI
+        if available_coarse_names:
+            category_options = ["All"] + available_coarse_names
+            selected_category = st.selectbox("Garment Class Filter", category_options)
+
+            if selected_category == "All":
+                coarse_label = None
+            else:
+    # Extract numeric label from strings like "3 - Blouse"
+                coarse_label = int(selected_category.split(" - ")[0])
+        else:
+            category_options = ["All"] + [str(x) for x in available_coarse_labels]
+            selected_category = st.selectbox("Garment Class Filter", category_options)
+            coarse_label = None if selected_category == "All" else int(selected_category)
     if search_mode == "Image Search":
         st.subheader("Upload a Query Image")
         uploaded_file = st.file_uploader(
@@ -158,7 +171,7 @@ def main():
                 with st.spinner("Searching..."):
                     try:
                         results_payload = search_by_image(uploaded_file, top_k, coarse_label)
-                        render_results(results_payload)
+                        render_results(results_payload, score_label = "Similarity Score")
                     except requests.HTTPError as e:
                         st.error(f"API error: {e.response.text}")
                     except Exception as e:
@@ -175,7 +188,7 @@ def main():
                 with st.spinner("Searching..."):
                     try:
                         results_payload = search_by_text(text_query, top_k, coarse_label)
-                        render_results(results_payload)
+                        render_results(results_payload, score_label = "Semantic Match")
                     except requests.HTTPError as e:
                         st.error(f"API error: {e.response.text}")
                     except Exception as e:

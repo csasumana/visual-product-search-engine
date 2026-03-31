@@ -45,7 +45,7 @@ def main():
         category = str(row["category"])
         title = row["title"] if "title" in df.columns else None
         coarse_label = row["coarse_label"] if "coarse_label" in df.columns else None
-
+        coarse_name = row["coarse_name"] if "coarse_name" in df.columns else None
         full_path = settings.resolve_raw_dataset_path(rel_image_path)
 
         if not full_path.exists():
@@ -72,7 +72,9 @@ def main():
             "category": category,
             "title": title if pd.notna(title) else None,
             "coarse_label": int(coarse_label) if pd.notna(coarse_label) else None,
+            "coarse_name": str(coarse_name) if pd.notna(coarse_name) else None,        
         })
+
 
         if (idx + 1) % 5000 == 0:
             print(f"[INFO] Validated {idx + 1}/{len(df)} rows...")

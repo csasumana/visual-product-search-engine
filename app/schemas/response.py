@@ -1,28 +1,27 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 
 class SearchResult(BaseModel):
     image_id: str
     image_path: str
     category: str
-    title: Optional[str] = None
     coarse_label: Optional[int] = None
+    coarse_name: Optional[str] = None
+    title: Optional[str] = None
     score: float
 
 
 class SearchResponse(BaseModel):
     query_type: str
     top_k: int
-    coarse_label_filter: Optional[int] = None
+    category_filter: Optional[str] = None
     latency_ms: float
     results: List[SearchResult]
 
 
 class HealthResponse(BaseModel):
-    model_config = ConfigDict(protected_namespaces=())
-
     app_name: str
     status: str
     clip_loaded: bool
@@ -30,7 +29,8 @@ class HealthResponse(BaseModel):
     dataset_size: int
     embedding_dim: int
     device: str
-    available_coarse_labels: List[int]
+    available_coarse_labels: List[int] = []
+    available_coarse_names: List[str] = []
 
 
 class MetricsResponse(BaseModel):
